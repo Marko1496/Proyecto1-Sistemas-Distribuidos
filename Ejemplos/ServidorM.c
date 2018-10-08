@@ -200,15 +200,6 @@ int main(int argc, char *argv[])
                                         break;
                                 }
                         }
-
-                        for(i=0; i < cantidadPag; i++) {
-                                if(strcmp(paginas[i].ip, "VACIO") == 0) {
-                                        strcpy(paginas[i].ip,inet_ntoa(address.sin_addr));
-                                        paginas[i].socket = new_socket;
-                                        nuevo = i;
-                                        break;
-                                }
-                        }
                 }
 
                 //else its some IO operation on some other socket :)
@@ -233,48 +224,41 @@ int main(int argc, char *argv[])
                                 //Echo back the message that came in
                                 else
                                 {
-                                        if(nuevo == -1) {
-                                                getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
-                                                int accion;
-                                                int numero_pagina;
-                                                int count = 0;
-                                                int init_size = strlen(buffer);
-                                                char delim[] = "-";
+                                        getpeername(sd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+                                        int accion;
+                                        int numero_pagina;
+                                        int count = 0;
+                                        int init_size = strlen(buffer);
+                                        char delim[] = "-";
 
-                                                char *ptr = strtok(buffer, delim);
+                                        char *ptr = strtok(buffer, delim);
 
-                                                while(ptr != NULL)
-                                                {
-                                                        if(count==0) {
-                                                                accion = atoi(ptr);
-                                                        }else if (count == 1) {
-                                                                numero_pagina = atoi(ptr);
-                                                        }
-                                                        count++;
-                                                        ptr = strtok(NULL, delim);
+                                        while(ptr != NULL)
+                                        {
+                                                if(count==0) {
+                                                        accion = atoi(ptr);
+                                                }else if (count == 1) {
+                                                        numero_pagina = atoi(ptr);
                                                 }
-                                                //printf("%i-%i\n",accion,numero_pagina);
+                                                count++;
+                                                ptr = strtok(NULL, delim);
+                                        }
+                                        //printf("%i-%i\n",accion,numero_pagina);
 
-                                                if(accion == 1) {
-                                                        system("clear");
-                                                        printf("Ip guardada: %s\n", inet_ntoa(address.sin_addr));
-                                                        strcpy(paginas[numero_pagina].ip,inet_ntoa(address.sin_addr));
-                                                        imprimirPaginas(paginas, cantidadPag);
-                                                        send(sd, "1", strlen("1"), 0 );
-                                                }
-                                                else if(accion == 2) {
-                                                        send(sd, "2", strlen("2"), 0 );
-                                                }
-                                                else{
-                                                        send(sd, "3", strlen("3"), 0 );
-                                                }
+                                        if(accion == 1) {
+                                                system("clear");
+                                                printf("Ip guardada: %s\n", inet_ntoa(address.sin_addr));
+                                                strcpy(paginas[numero_pagina].ip,inet_ntoa(address.sin_addr));
+                                                imprimirPaginas(paginas, cantidadPag);
+                                                send(sd, "1", strlen("1"), 0 );
+                                        }
+                                        else if(accion == 2) {
+                                                send(sd, "2", strlen("2"), 0 );
                                         }
                                         else{
-                                                char cadena [30];
-                                                toString(paginas[nuevo],cadena);
-                                                send(sd, cadena, strlen(cadena), 0 );
-                                                nuevo = -1;
+                                                send(sd, "3", strlen("3"), 0 );
                                         }
+
 
                                 }
                         }
