@@ -2,62 +2,203 @@
     C ECHO client example using sockets
  */
 #include <stdio.h> //printf
+#include <stdlib.h>
+#include <time.h>    // time()
 #include <string.h>    //strlen
 #include <sys/socket.h>    //socket
 #include <arpa/inet.h> //inet_addr
 #include <unistd.h> // for close
+#include <math.h>
 
+typedef struct pagina pagina;
+struct pagina
+{
+        char ip[20];
+        int socket;
+        int version;
+        int noPag;                     // Asigna un nuevo valor a A                       // Asigna un nuevo valor a B
+        int dueno;
+};
+void imprimirPagina(pagina *p_pagina){
+        printf("---------------------------\n" );
+        printf("Ip de la pagina: %s\n",p_pagina->ip );
+        printf("Socket del dueño de la pagina: %i\n",p_pagina->socket );
+        printf("Version del dueño de la pagina: %i\n",p_pagina->version );
+        printf("No de la pagina: %i\n",p_pagina->noPag );
+        if(p_pagina->dueno == 1) {
+                printf("Es dueno de la pagina.\n" );
+        }
+        else{
+                printf("No es dueno de la pagina.\n" );
+        }
+        printf("\n");
+};
+void imprimirPaginas(pagina *paginas, int total_paginas){
+        struct pagina *p_pagina;
+        int num_pagina;
+        p_pagina = paginas; /* apunta al primer elemento del array */
+        for( num_pagina=0; num_pagina<total_paginas; num_pagina++ ) {
+
+                imprimirPagina(p_pagina);
+                p_pagina++;
+        }
+}
+void inicializarPaginas(pagina *paginas, int total_paginas){
+        struct pagina *p_pagina;
+        int num_pagina;
+        p_pagina = paginas; /* apunta al primer elemento del array */
+        for( num_pagina=0; num_pagina<total_paginas; num_pagina++ ) {
+
+                strcpy(p_pagina->ip,"VACIO");
+                p_pagina->socket = 0;
+                p_pagina->version = 0;
+                p_pagina->noPag = num_pagina+1;
+                p_pagina->dueno = 0;
+                p_pagina++;
+        }
+}
 int main(int argc, char *argv[])
 {
-        int sock;
+        int sock, instruccion, pagina, cantidad_de_paginas;
+        int cont = 0;
+        double media;
+        double probabilidad;
+        double tiempoEspera;
+        char *ip_servidor;
         struct sockaddr_in server;
-        char message[1000], server_reply[2000];
+        char message[1025], server_reply[1025];
+        FILE *fichero;
+        char cadena[256];
+        char *contenido;
+        char delim[] = ",";
+        double numeroRand = rand () % 10;   // Este está entreo 20 y 30
 
-        //Create socket
-        sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (sock == -1)
-        {
-                printf("Could not create socket");
-        }
-        puts("Socket created");
-
-        server.sin_addr.s_addr = inet_addr("127.0.0.1");
-        server.sin_family = AF_INET;
-        server.sin_port = htons( 8888 );
-
-        //Connect to remote server
-        if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
-        {
-                perror("connect failed. Error");
-                return 1;
-        }
-
-        puts("Connected\n");
-
-        //keep communicating with server
-        while(1)
-        {
-                printf("Enter message : ");
-                scanf("%s", message);
-
-                //Send some data
-                if( send(sock, message, strlen(message), 0) < 0)
+        fichero = fopen("archivoDeConfiguracion.txt", "rt");
+        if (fichero == NULL) {
+                printf("Error: No se ha podido crear el fichero fichero1.txt");
+        } else {
+                //Se obtiene contenido del arcivo
+                contenido = fgets(cadena, 256, fichero);
+                fclose(fichero);
+                char *ptr = strtok(contenido, delim);
+                //Se lee el contenido y se inicializan las respectivas variables
+                while(ptr != NULL)
                 {
-                        puts("Send failed");
+                        if(cont==0) {
+                                ip_servidor = ptr;
+                        }else if (cont == 1) {
+                                cantidad_de_paginas = atoi(ptr);
+                        }else if (cont == 2) {
+                                media = atof(ptr);
+                        }else if (cont == 3) {
+                                probabilidad = atof(ptr);
+                        }
+                        cont++;
+                        ptr = strtok(NULL, delim);
+                }
+                printf("Ip del servidor: %s\n", ip_servidor);
+                printf("Cantidad de paginas: %i\n", cantidad_de_paginas);
+                printf("Media: %f\n", media);
+                printf("Probabilidad: %f\n", probabilidad);
+
+                //Tiempo de espera
+                tiempoEspera = -1*media*log(numeroRand);
+                if( tiempoEspera < 0)
+                        tiempoEspera = tiempoEspera* -1;
+                printf("tiempoespera: %f\n", tiempoEspera);
+
+                //Se inicializan paginas
+                struct pagina paginas[cantidad_de_paginas];
+                inicializarPaginas(paginas, cantidad_de_paginas);
+
+                //Create socket
+                sock = socket(AF_INET, SOCK_STREAM, 0);
+                if (sock == -1)
+                {
+                        printf("Could not create socket");
+                }
+                puts("Socket created");
+
+                server.sin_addr.s_addr = inet_addr("192.168.0.19");
+                server.sin_family = AF_INET;
+                server.sin_port = htons( 8888 );
+
+                //Connect to remote server
+                if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0)
+                {
+                        perror("connect failed. Error");
                         return 1;
                 }
 
-                //Receive a reply from the server
-                if( recv(sock, server_reply, 2000, 0) < 0)
+                puts("Connected\n");
+                srand (time(NULL));
+                //keep communicating with server
+                while(1)
                 {
-                        puts("recv failed");
-                        break;
+                        instruccion = rand() %2+1;
+                        pagina = rand() %cantidad_de_paginas+0;
+                        char instruccion_s[10];
+                        char pagina_s[10];
+
+                        memset(server_reply,0,1025);
+                        //puts(itoa (instruccion,10) );
+                        sleep(tiempoEspera);
+                        //memset(message, 0, 1025);
+                        //message[0] = '1';
+                        //message[1] = '\n';
+                        //message[2] = '\0';
+                        //-1*media*logN(random)
+
+                        //Send some data
+                        if(instruccion == 1) {
+                                //No tiene la pagina pero es el dueno
+                                if(strcmp(paginas[pagina].ip, "VACIO") == 0 && paginas[pagina].dueno == 0) {
+                                        sprintf(instruccion_s,"%i", instruccion);
+                                        sprintf(pagina_s,"%i", pagina);
+                                        strcat(instruccion_s,"-");
+                                        strcat(instruccion_s,pagina_s);
+                                        strcpy(message, instruccion_s);
+                                        printf("No se es dueno y se quiere leer pero no se tiene la pag. Piediendo la pag...\n");
+                                        printf("%s\n", message);
+                                        if( send(sock, message, strlen(message), 0) < 0)
+                                        {
+                                                puts("Send failed");
+                                                return 1;
+                                        }
+                                }else if(strcmp(paginas[pagina].ip, "VACIO") != 0 && paginas[pagina].dueno == 0) {
+                                        printf("Se tiene la pag y no se es dueno. La version de la pagina es: %i\n",paginas[pagina].version);
+                                }else if(paginas[pagina].dueno == 1) {
+                                        printf("Se tiene la pag y se es dueno. La version de la pagina es: %i\n",paginas[pagina].version);
+                                }
+                        }
+                        else{
+                                sprintf(instruccion_s,"%i", instruccion);
+                                sprintf(pagina_s,"%i", pagina);
+                                strcat(instruccion_s,"-");
+                                strcat(instruccion_s,pagina_s);
+                                strcpy(message, instruccion_s);
+                                printf("Cayo en 2\n");
+                                printf("%s\n", message);
+                                if( send(sock, message, strlen(message), 0) < 0)
+                                {
+                                        puts("Send failed");
+                                        return 1;
+                                }
+                        }
+
+
+                        //Receive a reply from the server
+                        if( recv(sock, server_reply, 1025, 0) < 0)
+                        {
+                                puts("recv failed");
+                                break;
+                        }
+
+                        puts("Server reply Pagina:");
+                        puts(server_reply);
                 }
 
-                puts("Server reply :");
-                puts(server_reply);
+                close(sock);
         }
-
-        close(sock);
         return 0;
 }
