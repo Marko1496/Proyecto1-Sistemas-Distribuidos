@@ -129,15 +129,27 @@ int main(int argc, char *argv[])
                 }
 
                 puts("Connected\n");
-                srand (time(NULL));
+                srand((unsigned int)time(NULL));
                 //keep communicating with server
                 while(1)
                 {
-                        instruccion = rand() %2+1;
                         pagina = rand() %cantidad_de_paginas+0;
                         char instruccion_s[10];
                         char pagina_s[10];
+                        float c = rand() / (float) RAND_MAX;
 
+                        float prob_lec = probabilidad;
+
+                        float prob_esc = 1 - prob_lec;
+
+                        if (c < prob_lec)
+                        {
+                                instruccion = 2;
+                        }
+                        else
+                        {
+                                instruccion = 1;
+                        }
                         memset(server_reply,0,1025);
                         //puts(itoa (instruccion,10) );
                         sleep(tiempoEspera);
