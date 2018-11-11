@@ -1,12 +1,13 @@
 -module(huffman).
 
--export([encode/1, decode/2, readlines/1, comprimir/1, descomprimir/2, main/0]).
+-compile(export_all).
 
 encode(Text)  ->
     Tree  = tree(freq_table(Text)),
+    FreqT = freq_table(Text),
     Dict = dict:from_list(codewords(Tree)),
     Code = << <<(dict:fetch(Char, Dict))/bitstring>> || Char <- Text >>,
-    {Code, Tree}.
+    {FreqT, Code}.
 
 decode(Code, Tree) ->
     decode(Code, Tree, Tree, []).
@@ -89,6 +90,6 @@ comprimir(FileName) -> Contenido = readlines(FileName),
 descomprimir(FileName, Nombre) -> {ok, A} = file:read_file(FileName),
                                    {B, C} = binary_to_term(A),
                                    {ok, IO} = file:open(Nombre, write),
-                                   file:write(IO, decode(B, C)),
+                                   file:write(IO, decode(C, tree(B))),
                                    file:close(A),
                                    file:close(IO).
