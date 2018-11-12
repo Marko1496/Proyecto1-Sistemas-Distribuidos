@@ -85,10 +85,9 @@ comprimir(FileName, Datos) -> Binario = term_to_binary(Datos),
 
 descomprimir(FileName, Nombre) -> {ok, A} = file:read_file(FileName),
                                    {FreqT, Datos} = binary_to_term(A),
-                                   escribirArchivo(Nombre, FreqT, Datos),
-                                   file:close(A).
+                                   escribirArchivo(Nombre, FreqT, Datos).
 
-escribirArchivo(_Nombre, _FreqT, []) -> [];
+escribirArchivo(_Nombre, _FreqT, []) -> ok;
 escribirArchivo(Nombre, FreqT, [H|T]) -> file:write_file(Nombre, decode(H, tree(FreqT)), [append]),
                                           escribirArchivo(Nombre, FreqT, T).
 
