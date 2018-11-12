@@ -2,26 +2,24 @@
 
 -compile(export_all).
 
-encode(Text)  ->
-    Tree  = tree(freq_table(Text)),
-    FreqT = freq_table(Text),
+encode(Text, Tree)  ->
     Dict = dict:from_list(codewords(Tree)),
     Code = << <<(dict:fetch(Char, Dict))/bitstring>> || Char <- Text >>,
-    {FreqT, Code}.
+    Code.
 
 decode(Code, Tree) ->
     decode(Code, Tree, Tree, []).
 
-main() ->
-    {Code, Tree, Dict} = encode("this is an example for huffman encoding"),
-    [begin
-        io:format("~s: ",[[Key]]),
-        print_bits(Value)
-     end || {Key, Value} <- lists:sort(dict:to_list(Dict))],
-    io:format("encoded: "),
-    print_bits(Code),
-    io:format("decoded: "),
-    io:format("~s\n",[decode(Code, Tree)]).
+%main() ->
+%    {Code, Tree, Dict} = encode("this is an example for huffman encoding"),
+%    [begin
+%        io:format("~s: ",[[Key]]),
+%        print_bits(Value)
+%     end || {Key, Value} <- lists:sort(dict:to_list(Dict))],
+%    io:format("encoded: "),
+%    print_bits(Code),
+%    io:format("decoded: "),
+%    io:format("~s\n",[decode(Code, Tree)]).
 
 decode(<<>>, _, _, Result) ->
     lists:reverse(Result);
@@ -78,18 +76,110 @@ get_all_lines(Device) ->
         Line -> Line ++ get_all_lines(Device)
     end.
 
-%--------------------------------------------------
+%-------------------------------------------------- Comprimir y descomprimir
 
-comprimir(FileName) -> Contenido = readlines(FileName),
-                       Codigo = encode(Contenido),
-                       Binario = term_to_binary(Codigo),
-                       {ok, IO} = file:open(string:concat(FileName, ".mrkb"), [raw, write, binary]),
-                       file:pwrite(IO,0,Binario),
-                       file:close(IO).
+comprimir(FileName, Datos) -> Binario = term_to_binary(Datos),
+                              {ok, IO} = file:open(string:concat(FileName, ".mrkb"), [raw, write, binary]),
+                              file:pwrite(IO,0,Binario),
+                              file:close(IO).
 
 descomprimir(FileName, Nombre) -> {ok, A} = file:read_file(FileName),
-                                   {B, C} = binary_to_term(A),
-                                   {ok, IO} = file:open(Nombre, write),
-                                   file:write(IO, decode(C, tree(B))),
-                                   file:close(A),
-                                   file:close(IO).
+                                   {FreqT, Datos} = binary_to_term(A),
+                                   escribirArchivo(Nombre, FreqT, Datos),
+                                   file:close(A).
+
+escribirArchivo(_Nombre, _FreqT, []) -> [];
+escribirArchivo(Nombre, FreqT, [H|T]) -> file:write_file(Nombre, decode(H, tree(FreqT)), [append]),
+                                          escribirArchivo(Nombre, FreqT, T).
+
+
+%-------------------------------------------------- Servidor
+
+part(List) ->
+        part(List, []).
+part([], Acc) ->
+        lists:reverse(Acc);
+part([H], Acc) ->
+        lists:reverse([[H]|Acc]);
+part([H1,H2|T], Acc) ->
+        part(T, [[H1,H2]|Acc]).
+
+miembro(_E, [])->false;
+miembro({E, _F},[{E, _X}|_T])->true;
+miembro({E, F},[_H|T])->miembro({E, F},T).
+
+sumarP(A, B) -> sumarP(A, B, []).
+sumarP(_E, [], B)->B;
+sumarP({E, F},[{E, X}|T], L)->L++[{E, F+X}]++T;
+sumarP({E, F},[H|T],L)->sumarP({E, F},T, L++[H]).
+
+sumFreq(A, []) -> A;
+sumFreq(A, [H|T]) -> case miembro(H, A) of true -> sumFreq(sumarP(H, A), T); false -> sumFreq(A++[H], T) end.
+
+punto()->{rand:uniform(), rand:uniform()}.
+
+estaDentro({X,Y})-> (X*X+Y*Y) =< 1.
+
+suma(false)->0;
+suma(true)->1.
+
+cuentaPuntos(0,D,T,Server)-> Server ! {D,T};
+cuentaPuntos(N,D,T,Server)-> Pto = punto(),
+    cuentaPuntos(N-1, D+suma(estaDentro(Pto)), T+1, Server).
+
+generaHilos(0, _Server)->ok;
+generaHilos(N,Server)->spawn(fun()->cuentaPuntos(1000, 0, 0, Server) end), generaHilos(N-1,Server).
+
+piServer(D,T)->
+    receive
+        {Dentro,Total} -> piServer(D+Dentro, T+Total);
+        pi -> io:format("~p~n", [D*4/T]),
+                piServer(D,T);
+        cumbia->io:format("Me muero~n", []);
+        X -> io:format("recibo: ~p~n",[X]), piServer(D,T)
+    end.
+
+  dividirA(Archivo) -> Tamano = filelib:file_size(Archivo), List = readlines(Archivo),
+                       if (Tamano < 101) ->
+                         [ lists:sublist(List, X, (Tamano div 2)+1) || X <- lists:seq(1,length(List),(Tamano div 2)+1) ];
+                         (Tamano < 1001) ->
+                         [ lists:sublist(List, X, (Tamano div 4)+1) || X <- lists:seq(1,length(List),(Tamano div 4)+1) ];
+                       (Tamano > 1000) ->
+                         [ lists:sublist(List, X, (Tamano div 8)+1) || X <- lists:seq(1,length(List),(Tamano div 8)+1) ]
+                       end.
+
+
+
+servidorP(FreqT, Cant, Hilos, Partes, File) ->
+  receive
+      {[{A,B}|T], Hilo} -> if (Cant =:= 1) -> F = sumFreq(FreqT, [{A,B}|T]), broadcast(Hilos++[Hilo], tree(F)), servidorP(F, length(Hilos++[Hilo]), Hilos, Partes, File);
+                              (Cant =/= 1) -> X = sumFreq(FreqT, [{A,B}|T]), servidorP(X, Cant-1, Hilos++[Hilo], Partes, File) end;
+
+      {Num, Codigo} -> if (Cant =:= 1) -> comprimir(File, {FreqT ,listaCodigos(lists:sort(Partes++[{Num, Codigo}]))});
+                          (Cant =/= 1) -> servidorP(FreqT, Cant-1, Hilos, Partes++[{Num, Codigo}], File) end;
+
+
+      Archivo -> APartes = dividirA(Archivo), generarHilos(self(), APartes), servidorP(FreqT, length(APartes), [], Partes, Archivo)
+  end.
+
+broadcast([], _Mensaje) -> ok;
+broadcast([H|T], Mensaje) -> H ! Mensaje, broadcast(T, Mensaje).
+
+comParte(Servidor, Texto, Num)-> Servidor ! {freq_table(Texto), self()},
+  receive
+    Arbol -> Servidor ! {Num, encode(Texto, Arbol)}
+  end.
+
+generarHilos(A, B) -> generarHilos(A, B ,0).
+generarHilos(_, [], _) -> ok;
+generarHilos(Servidor, [H| T], C) -> spawn(fun()->comParte(Servidor, H, C+1) end), generarHilos(Servidor, T, C+1).
+
+listaCodigos(L) -> listaCodigos(L, []).
+listaCodigos([], Acum) -> Acum;
+listaCodigos([{_Num, Cod}|T], Acum) -> listaCodigos(T, Acum++[Cod]).
+
+
+% MiServer = spawn (fun()->server:piServer(0,0)end).
+
+% server:generaHilos(1000, MiServer).
+% MiServer ! pi.
